@@ -1,4 +1,3 @@
-import os
 import sys
 from loguru import logger
 from pathlib import Path
@@ -8,23 +7,21 @@ from datetime import datetime
 
 
 # Initialize ChatOpenAI model
-def get_agent(tag: str = "stream") -> ChatOpenAI:
-    BASE_URL = os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1")
-    API_KEY = os.getenv("API_KEY", None)
-    if not API_KEY:
-        raise ValueError("API_KEY environment variable is not set.")
-    MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-VL-235B-A22B-Instruct")
-    MAX_COMPLETION_TOKENS = int(os.getenv("MAX_TOKENS", "16384"))
-    TEMPERATURE = float(os.getenv("TEMPERATURE", "0.3"))
-    TOP_P = float(os.getenv("TOP_P", "0.7"))
+def get_agent(base_url: str,
+              api_key: SecretStr,
+              model_name: str,
+              temperature: float = 0.3,
+              top_p: float = 0.7,
+              max_completion_tokens: int = 16384,
+              tag: str = "stream") -> ChatOpenAI:
     model = ChatOpenAI(
-        model=MODEL_NAME,
-        temperature=TEMPERATURE,
-        top_p=TOP_P,
-        max_completion_tokens=MAX_COMPLETION_TOKENS,
-        base_url=BASE_URL,
-        api_key=SecretStr(API_KEY),
-        tags=["stream"] if tag == "stream" else None,
+        model=model_name,
+        temperature=temperature,
+        top_p=top_p,
+        max_completion_tokens=max_completion_tokens,
+        base_url=base_url,
+        api_key=api_key,
+        tags=[tag],
     )
     return model
 
