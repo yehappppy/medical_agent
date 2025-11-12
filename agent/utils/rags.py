@@ -1,86 +1,155 @@
-from qdrant_client import QdrantClient
+import os
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
-from qdrant_client.http.models import PointStruct
-from typing import List, Dict, Any
-import uuid
+from qdrant_client.http.models import Distance, VectorParams
+from typing import List, Dict, Optional, Union
+import asyncio
+from loguru import logger
+from pathlib import Path
 
 
-class QdrantRAGClient:
+class AsyncQdrantRAG:
 
     def __init__(self,
-                 host="localhost",
-                 port=6333,
-                 collection_name="documents"):
+                 host: str = "localhost",
+                 port: int = 6333,
+                 vector_size: int = 512,
+                 collection_name: str = "medical_knowledge_base",
+                 distance: str = "Cosine"):
         """
-        Initialize Qdrant RAG client
+        Initialize async Qdrant client for RAG
         
         Args:
             host: Qdrant server host
             port: Qdrant server port
             collection_name: Name of the collection to use
+            vector_size: Size of embedding vectors
+            distance: Distance metric (Cosine, Euclid, Dot)
         """
-        self.client = QdrantClient(host=host, port=port)
+        self.client = AsyncQdrantClient(host=os.getenv("QDRANT_HOST",
+                                                       "localhost"),
+                                        port=int(os.getenv(
+                                            "QDRANT_PORT", 6333)))
+        self.vector_size = int(os.getenv("QDRANT_DIMENSION", vector_size))
         self.collection_name = collection_name
-        self.encoder = SentenceTransformer('all-MiniLM-L6-v2')
+        self.distance = getattr(Distance, distance.upper())
 
-        # Create collection if it doesn't exist
-        self._create_collection()
-
-    def _create_collection(self, vector_size=384):
-        """
-        Create Qdrant collection with specified vector size
-        """
+    async def create_collection(self):
+        """Create collection if it doesn't exist"""
         try:
-            self.client.get_collection(self.collection_name)
-        except:
-            self.client.create_collection(collection_name=self.collection_name,
-                                          vectors_config=models.VectorParams(
-                                              size=vector_size,
-                                              distance=models.Distance.COSINE))
+            collections = await self.client.get_collections()
+            collection_names = [c.name for c in collections.collections]
 
-    def add_documents(self, documents: List[Dict[str, Any]]):
+            if self.collection_name not in collection_names:
+                await self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=VectorParams(size=self.vector_size,
+                                                distance=self.distance))
+                logger.info(f"Created collection: {self.collection_name}")
+            else:
+                logger.info(
+                    f"Collection {self.collection_name} already exists")
+        except Exception as e:
+            logger.error(f"Error creating collection: {e}")
+            raise
+
+    async def add_documents(self,
+                            documents: List[Dict],
+                            embeddings: List[List[float]],
+                            ids: Optional[List[Union[int, str]]] = None):
         """
-        Add documents to the collection
-        
+        Add documents with embeddings to collection
+
         Args:
-            documents: List of dicts with 'text' and optional metadata
+            documents: List of document dictionaries with 'content' and 'metadata'
+            embeddings: List of embedding vectors
+            ids: Optional list of document IDs
         """
+        if len(documents) != len(embeddings):
+            raise ValueError(
+                "Number of documents must match number of embeddings")
+
+        if ids is None:
+            ids = list(range(len(documents)))
+
         points = []
-        for doc in documents:
-            vector = self.encoder.encode(doc['text']).tolist()
-            point = PointStruct(id=str(uuid.uuid4()),
-                                vector=vector,
-                                payload={
-                                    "text": doc['text'],
-                                    "metadata": doc.get('metadata', {})
-                                })
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            point = models.PointStruct(id=str(ids[i]),
+                                       vector=embedding,
+                                       payload={
+                                           "content": doc.get("content", ""),
+                                           "metadata": doc.get("metadata", {}),
+                                           "source":
+                                           doc.get("source", "unknown")
+                                       })
             points.append(point)
 
-        self.client.upsert(collection_name=self.collection_name, points=points)
+        await self.client.upsert(collection_name=self.collection_name,
+                                 points=points)
+        logger.info(f"Added {len(documents)} documents to collection")
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    async def search(self,
+                     query_embedding: List[float],
+                     top_k: int = 5,
+                     filters: Optional[Dict] = None) -> List[Dict]:
         """
-        Search for relevant documents
+        Search for similar documents
         
         Args:
-            query: Query string
+            query_embedding: Query embedding vector
             top_k: Number of results to return
-            
-        Returns:
-            List of documents with scores
+            filters: Optional filter conditions
         """
-        query_vector = self.encoder.encode(query).tolist()
+        try:
+            # Build filter if provided
+            qdrant_filter = None
+            if filters:
+                conditions = []
+                for key, value in filters.items():
+                    conditions.append(
+                        models.FieldCondition(
+                            key=f"metadata.{key}",
+                            match=models.MatchValue(value=value)))
+                if conditions:
+                    qdrant_filter = models.Filter(must=conditions)
 
-        results = self.client.search(collection_name=self.collection_name,
-                                     query_vector=query_vector,
-                                     limit=top_k)
+            results = await self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                limit=top_k,
+                query_filter=qdrant_filter,
+                with_payload=True)
 
-        return [{
-            "text": result.payload["text"],
-            "metadata": result.payload["metadata"],
-            "score": result.score
-        } for result in results]
+            # Format results
+            formatted_results = []
+            for result in results:
+                formatted_results.append({
+                    "id":
+                    result.id,
+                    "content":
+                    result.payload.get("content", ""),
+                    "metadata":
+                    result.payload.get("metadata", {}),
+                    "score":
+                    result.score,
+                    "source":
+                    result.payload.get("source", "unknown")
+                })
 
-    def delete_collection(self):
-        """Delete the collection (use with caution)"""
-        self.client.delete_collection(self.collection_name)
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Search error: {e}")
+            return []
+
+    async def delete_collection(self):
+        """Delete the collection"""
+        try:
+            await self.client.delete_collection(self.collection_name)
+            logger.info(f"Deleted collection: {self.collection_name}")
+        except Exception as e:
+            logger.error(f"Error deleting collection: {e}")
+
+    async def close(self):
+        """Close the client connection"""
+        await self.client.aclose()
