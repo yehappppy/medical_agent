@@ -10,28 +10,31 @@ from datetime import datetime
 # Initialize ChatOpenAI model
 def get_agent(tag: str = "stream") -> ChatOpenAI:
     BASE_URL = os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1")
-    API_KEY = os.getenv("API_KEY", "")
+    API_KEY = os.getenv("API_KEY", None)
+    if not API_KEY:
+        raise ValueError("API_KEY environment variable is not set.")
     MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-VL-235B-A22B-Instruct")
     MAX_COMPLETION_TOKENS = int(os.getenv("MAX_TOKENS", "16384"))
     TEMPERATURE = float(os.getenv("TEMPERATURE", "0.3"))
     TOP_P = float(os.getenv("TOP_P", "0.7"))
-
-    model = ChatOpenAI(name=MODEL_NAME,
-                       temperature=TEMPERATURE,
-                       top_p=TOP_P,
-                       max_completion_tokens=MAX_COMPLETION_TOKENS,
-                       base_url=BASE_URL,
-                       api_key=SecretStr(API_KEY),
-                       streaming=(tag == "stream"))
+    model = ChatOpenAI(
+        model=MODEL_NAME,
+        temperature=TEMPERATURE,
+        top_p=TOP_P,
+        max_completion_tokens=MAX_COMPLETION_TOKENS,
+        base_url=BASE_URL,
+        api_key=SecretStr(API_KEY),
+        tags=["stream"] if tag == "stream" else None,
+    )
     return model
 
 
-def setup_logger_with_module(module_name: str = "MEDICAL_AGENT") -> logger:
+def get_logger(module_name: str = "medical_agent") -> logger:
     """Setup logger with module-specific log files"""
     logger.remove()
 
     # Create logs directory
-    logs_dir = Path("logs")
+    logs_dir = Path("log")
     logs_dir.mkdir(exist_ok=True)
 
     # Generate timestamped filename with module name
@@ -60,4 +63,4 @@ def setup_logger_with_module(module_name: str = "MEDICAL_AGENT") -> logger:
     return logger
 
 
-logger = setup_logger_with_module()
+logger = get_logger()
