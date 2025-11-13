@@ -1,44 +1,45 @@
+import os
+import io
 import sys
-from loguru import logger
+import base64
+from PIL import Image
 from pathlib import Path
-from pydantic import SecretStr
-from langchain_openai import ChatOpenAI
+from loguru import logger
 from datetime import datetime
+from typing import Union, List
+from pydantic import SecretStr
+from pdf2image import convert_from_path
+from langchain_openai import ChatOpenAI
 
 
 # Initialize ChatOpenAI model
-def get_agent(base_url: str,
-              api_key: SecretStr,
-              model_name: str,
-              temperature: float = 0.3,
-              top_p: float = 0.7,
-              max_completion_tokens: int = 16384,
-              tag: str = "stream") -> ChatOpenAI:
+def get_agent(name: str, tags: list[str] | None = None) -> ChatOpenAI:
+    base_url = os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1")
+    api_key = SecretStr(os.getenv("API_KEY", ""))
+    model_name = os.getenv(f"{name}_MODEL", "")
+    temperature = float(os.getenv(f"{name}_TEMPERATURE", 0.3))
+    max_completion_tokens = int(os.getenv(f"{name}_MAX_TOKENS", 16384))
     model = ChatOpenAI(
         model=model_name,
-        temperature=temperature,
-        top_p=top_p,
-        max_completion_tokens=max_completion_tokens,
         base_url=base_url,
         api_key=api_key,
-        tags=[tag],
+        temperature=temperature,
+        max_completion_tokens=max_completion_tokens,
+        tags=tags,
     )
     return model
 
 
-def get_logger(module_name: str = "medical_agent") -> logger:
+def get_logger(module_name: str = "medical_agent"):
     """Setup logger with module-specific log files"""
     logger.remove()
 
-    # Create logs directory
     logs_dir = Path("log")
     logs_dir.mkdir(exist_ok=True)
 
-    # Generate timestamped filename with module name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = logs_dir / f"{module_name}_{timestamp}.log"
 
-    # Console handler
     logger.add(
         sys.stdout,
         format=
@@ -46,18 +47,53 @@ def get_logger(module_name: str = "medical_agent") -> logger:
         level="INFO",
         colorize=True)
 
-    # File handler with module name + timestamp
     logger.add(
         log_filename,
         format=
         "{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}",
         level="INFO",
-        rotation="10 MB",  # Rotate when file reaches 10MB
-        retention="7 days",  # Keep logs for 7 days
-        compression="zip"  # Compress old logs
-    )
+        rotation="10 MB",
+        retention="7 days",
+        compression="zip")
 
     return logger
 
 
-logger = get_logger()
+def image_to_base64(
+    image_input: Union[str, Image.Image, List[Image.Image]]
+) -> Union[str, List[str]]:
+    if isinstance(image_input, str):
+        with open(image_input, "rb") as image_file:
+            binary_data = image_file.read()
+            base64_encoded = base64.b64encode(binary_data).decode('utf-8')
+            return base64_encoded
+
+    elif isinstance(image_input, Image.Image):
+        buffer = io.BytesIO()
+        image_input.save(buffer, format="PNG")
+        img_bytes = buffer.getvalue()
+        base64_encoded = base64.b64encode(img_bytes).decode('utf-8')
+        return base64_encoded
+
+    elif isinstance(image_input, list):
+        base64_list = []
+        for img in image_input:
+            if not isinstance(img, Image.Image):
+                raise TypeError(
+                    f"List item must be a PIL Image object, got {type(img)}")
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            img_bytes = buffer.getvalue()
+            base64_str = base64.b64encode(img_bytes).decode('utf-8')
+            base64_list.append(base64_str)
+        return base64_list
+
+    else:
+        raise TypeError(
+            f"Input must be str, PIL.Image.Image, or List[PIL.Image.Image], got {type(image_input)}"
+        )
+
+
+def pdf_to_image_list(pdf_path: str, dpi: int = 300) -> List[Image.Image]:
+    images = convert_from_path(pdf_path, dpi=dpi)
+    return images

@@ -2,3 +2,5 @@ langchain
 langchain_openai
 loguru
 qdrant-client[fastembed]
+PyMuPDF
+pdf2image

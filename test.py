@@ -1,38 +1,17 @@
 import os
-from agent.utils.tools import logger, get_agent
+from agent.utils.chunker import get_embedding_model
+from agent.utils.tools import get_logger, get_agent, image_to_base64
 
-API_CONFIG = {
-    "base_url": os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1"),
-    "api_key": os.getenv("API_KEY", None),
-}
-
-LLM_CONFIG = {
-    "model_name": os.getenv("LLM_MODEL", "Qwen/Qwen3-235B-A22B-Instruct-2507"),
-    "max_completion_tokens": int(os.getenv("LLM_MAX_TOKENS", 16384)),
-    "temperature": float(os.getenv("LLM_TEMPERATURE", 0.3)),
-    "top_p": float(os.getenv("LLM_TOP_P", 0.7)),
-}
-
-VLM_CONFIG = {
-    "model_name": os.getenv("VLM_MODEL", "Qwen/Qwen3-VL-235B-A22B-Instruct"),
-    "max_completion_tokens": int(os.getenv("VLM_MAX_TOKENS", 16384)),
-    "temperature": float(os.getenv("VLM_TEMPERATURE", 0.3)),
-    "top_p": float(os.getenv("VLM_TOP_P", 0.7)),
-}
-
-SLM_CONFIG = {
-    "model_name": os.getenv("SLM_MODEL", "Qwen/Qwen3-14B"),
-    "max_completion_tokens": int(os.getenv("SLM_MAX_TOKENS", 4096)),
-    "temperature": float(os.getenv("SLM_TEMPERATURE", 0.1)),
-}
+logger = get_logger()
 
 EMBEDDING_MODEL_CONFIG = {
     "model_name": os.getenv("EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B"),
 }
 
-MK_AGENT = get_agent(**API_CONFIG, **SLM_CONFIG, tag="MK")
-LLM_AGENT = get_agent(**API_CONFIG, **LLM_CONFIG, tag="LLM")
-VLM_AGENT = get_agent(**API_CONFIG, **VLM_CONFIG, tag="VLM")
+MK_AGENT = get_agent(name="SLM")
+LLM_AGENT = get_agent(name="LLM", tags=["stream"])
+VLM_AGENT = get_agent(name="VLM", tags=["stream"])
+OCR_AGENT = get_agent(name="OCR")
 
 logger.info("Agent initialized successfully.")
 
@@ -66,5 +45,26 @@ VLM_AGENT_response = VLM_AGENT.invoke([{
     }]
 }]).content
 logger.info(f"VLM_AGENT response: {VLM_AGENT_response}")
+
+image_base64 = image_to_base64("data/test.jpg")
+OCR_AGENT_response = OCR_AGENT.invoke([{
+    "role":
+    "user",
+    "content": [{
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/jpeg;base64,{image_base64}"
+        }
+    }, {
+        "type": "text",
+        "text": "<image>\n<|grounding|>OCR this image."
+    }]
+}]).content
+logger.info(f"OCR_AGENT response: {OCR_AGENT_response}")
+
+embedding_model = get_embedding_model()
+text = "LangChain is the framework for building context-aware reasoning applications"
+single_vector = embedding_model.embed_query(text)
+logger.info(f"Single vector embedding for the text: {single_vector[:5]}...")
 
 logger.info("Test completed.")
