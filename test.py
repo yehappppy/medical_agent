@@ -1,6 +1,7 @@
 import os
-from agent.utils.chunker import get_embedding_model
+import asyncio
 from agent.utils.tools import get_logger, get_agent, image_to_base64
+from agent.utils.chunker import get_embedding_model, sync_rerank, async_rerank
 
 logger = get_logger()
 
@@ -66,5 +67,40 @@ embedding_model = get_embedding_model()
 text = "LangChain is the framework for building context-aware reasoning applications"
 single_vector = embedding_model.embed_query(text)
 logger.info(f"Single vector embedding for the text: {single_vector[:5]}...")
+
+
+async def run_concurrent_reranks():
+    requests_data = [
+        {
+            "query": "Python programming",
+            "documents":
+            ["Python is great", "Java is fast", "C++ is powerful"]
+        },
+        {
+            "query": "Machine learning",
+            "documents":
+            ["AI is the future", "ML algorithms", "Deep learning"]
+        },
+        {
+            "query":
+            "Web development",
+            "documents":
+            ["React is popular", "Vue is flexible", "Angular is robust"]
+        },
+    ]
+
+    tasks = [
+        async_rerank(query=req["query"], documents=req["documents"])
+        for req in requests_data
+    ]
+
+    results = await asyncio.gather(*tasks)
+
+    for i, result in enumerate(results):
+        logger.info(result)
+
+
+# Run the concurrent example
+asyncio.run(run_concurrent_reranks())
 
 logger.info("Test completed.")

@@ -1,6 +1,6 @@
-langchain
-langchain_openai
 loguru
-qdrant-client[fastembed]
 PyMuPDF
 pdf2image
+langchain
+langchain_openai
+qdrant-client[fastembed]
