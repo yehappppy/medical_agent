@@ -4,7 +4,7 @@ import hashlib
 import asyncio
 from loguru import logger
 from typing import List, Dict
-from agent.utils.chunker import get_embedding_model
+from .tools import get_embedding_model
 
 from qdrant_client.http import models
 from qdrant_client import AsyncQdrantClient

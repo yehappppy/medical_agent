@@ -9,10 +9,9 @@ from datetime import datetime
 from typing import Union, List
 from pydantic import SecretStr
 from pdf2image import convert_from_path
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 
-# Initialize ChatOpenAI model
 def get_agent(name: str, tags: list[str] | None = None) -> ChatOpenAI:
     base_url = os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1")
     api_key = SecretStr(os.getenv("API_KEY", ""))
@@ -28,6 +27,17 @@ def get_agent(name: str, tags: list[str] | None = None) -> ChatOpenAI:
         tags=tags,
     )
     return model
+
+
+def get_embedding_model(
+        model_name: str = "Qwen/Qwen3-Embedding-8B") -> OpenAIEmbeddings:
+
+    embedding_model = OpenAIEmbeddings(
+        model=model_name,
+        base_url=os.getenv("MODEL_URL", "https://api.siliconflow.cn/v1"),
+        api_key=SecretStr(os.getenv("API_KEY", "")),
+    )
+    return embedding_model
 
 
 def get_logger(module_name: str = "medical_agent"):
