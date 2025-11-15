@@ -1,15 +1,13 @@
 import os
 import asyncio
 from agent.utils import (
-    get_logger,
+    logger,
     get_agent,
     get_embedding_model,
     image_to_base64,
     rerank,
     AsyncQdrantRAG,
 )
-
-logger = get_logger()
 
 EMBEDDING_MODEL_CONFIG = {
     "model_name": os.getenv("EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B"),
