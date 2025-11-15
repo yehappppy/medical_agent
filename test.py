@@ -1,9 +1,8 @@
 import os
 import asyncio
-from agent.utils.tools import get_logger, get_agent, image_to_base64
+from agent.utils.tools import get_logger, get_agent, image_to_base64, extract_ocr_text, medical_ocr_postprocess  
 from agent.utils.chunker import get_embedding_model, sync_rerank, async_rerank
 from agent.utils.rags import AsyncQdrantRAG
-
 logger = get_logger()
 
 EMBEDDING_MODEL_CONFIG = {
@@ -48,21 +47,27 @@ VLM_AGENT_response = VLM_AGENT.invoke([{
 }]).content
 logger.info(f"VLM_AGENT response: {VLM_AGENT_response}")
 
-image_base64 = image_to_base64("data/test.jpg")
+image_base64 = image_to_base64("data/test2.jpg")
 OCR_AGENT_response = OCR_AGENT.invoke([{
     "role":
     "user",
     "content": [{
         "type": "image_url",
         "image_url": {
-            "url": f"data:image/jpeg;base64,{image_base64}"
+            "url": f"data:image/jpg;base64,{image_base64}"
         }
     }, {
         "type": "text",
         "text": "<image>\n<|grounding|>OCR this image."
     }]
 }]).content
-logger.info(f"OCR_AGENT response: {OCR_AGENT_response}")
+
+final_text = extract_ocr_text(OCR_AGENT_response)
+logger.info(f"OCR_AGENT response (basic): {final_text}")
+
+#medical_text = medical_ocr_postprocess(OCR_AGENT_response)
+#logger.info(f"OCR_AGENT response (medical): {medical_text}")
+
 
 embedding_model = get_embedding_model()
 text = "LangChain is the framework for building context-aware reasoning applications"
