@@ -2,6 +2,7 @@ import os
 import asyncio
 from agent.utils.tools import get_logger, get_agent, image_to_base64
 from agent.utils.chunker import get_embedding_model, sync_rerank, async_rerank
+from agent.utils.rags import AsyncQdrantRAG
 
 logger = get_logger()
 
@@ -103,4 +104,28 @@ async def run_concurrent_reranks():
 # Run the concurrent example
 asyncio.run(run_concurrent_reranks())
 
+qdrant_client = AsyncQdrantRAG()
+collection_name = os.getenv("QDRANT_COLLECTION", "medical_document_summaries")
+asyncio.run(qdrant_client.create_collection(collection_name=collection_name))
+asyncio.run(
+    qdrant_client.add_documents(
+        documents=[
+            {
+                "content": "1 + 1 = 2",
+                "metadata": {
+                    "source": "doc1.pdf"
+                }
+            },
+            {
+                "content": "2 + 2 = 4",
+                "metadata": {
+                    "source": "doc2.pdf"
+                }
+            },
+        ],
+        collection_name=collection_name,
+    ))
+result = asyncio.run(
+    qdrant_client.search(collection_name=collection_name, query="1 + 1 = ?"))
+logger.info(result)
 logger.info("Test completed.")
