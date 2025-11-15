@@ -76,7 +76,26 @@ logger.info(f"Single vector embedding for the text: {single_vector[:5]}...")
 
 rerank_result = rerank(
     query="Python programming",
-    documents=["Python is great", "Java is fast", "C++ is powerful"],
+    documents=[
+        {
+            "content": "Python is great",
+            "metadata": {
+                "file_name": "doc1"
+            }
+        },
+        {
+            "content": "Java is fast",
+            "metadata": {
+                "file_name": "doc2"
+            }
+        },
+        {
+            "content": "C++ is powerful",
+            "metadata": {
+                "file_name": "doc1"
+            }
+        },
+    ],
 )
 logger.info(rerank_result)
 

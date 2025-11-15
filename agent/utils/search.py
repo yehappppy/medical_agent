@@ -37,14 +37,14 @@ async def retrieve(query: str) -> List[Dict]:
 
 def rerank(
     query: str,
-    documents: List[str],
-) -> List[str]:
+    documents: List[Dict],
+) -> List[Dict]:
     url = f"{os.getenv("BASE_URL", "https://api.siliconflow.cn/v1")}/rerank"
 
     payload = {
         "model": os.getenv("RERANK_MODEL", "Qwen/Qwen3-Reranker-8B"),
         "query": query,
-        "documents": documents,
+        "documents": [document["content"] for document in documents],
         "top_n": int(os.getenv("RERANK_TOP_N", 5)),
     }
 
