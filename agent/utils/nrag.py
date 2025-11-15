@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import asyncio
 from loguru import logger
 from typing import List, Dict
 from agent.utils.chunker import get_embedding_model
@@ -21,6 +22,7 @@ class AsyncQdrantRAG:
         self.distance = getattr(Distance, os.getenv("QDRANT_DISTANCE",
                                                     "COSINE"))
         self.embedding_model = get_embedding_model()
+        self._init_summary_collection()
 
     def generate_qdrant_id(self, document: Dict) -> str:
         content_to_hash = document.get("content", "") + json.dumps(
@@ -46,6 +48,11 @@ class AsyncQdrantRAG:
         except Exception as e:
             logger.error(f"Error creating collection: {e}")
             raise
+
+    def _init_summary_collection(self):
+        collection_name = os.getenv("QDRANT_COLLECTION",
+                                    "medical_document_summaries")
+        asyncio.run(self.create_collection(collection_name))
 
     async def add_documents(
         self,
